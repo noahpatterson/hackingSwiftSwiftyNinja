@@ -535,6 +535,8 @@ class GameScene: SKScene {
         sequencePosition = 0
         score = 0
         lives = 3
+        popupTime = 0.9
+        chainDelay = 3.0
         
         for life in livesImages {
             life.texture = SKTexture(imageNamed: "sliceLife")
