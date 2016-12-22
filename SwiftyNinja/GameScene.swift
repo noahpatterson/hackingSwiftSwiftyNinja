@@ -14,7 +14,8 @@ class GameScene: SKScene {
     var gameEnded = false
     var gameScore: SKLabelNode!
     let gameOverLabel = SKLabelNode(fontNamed: "Chalkduster")
-    let playAgainLabel = SKLabelNode(fontNamed: "ChalkDuster")
+    let playAgainLabel = SKLabelNode(fontNamed: "Chalkduster")
+    var highScoreLabel = SKNode()
     var bombSoundEffect: AVAudioPlayer!
     var score: Int = 0 {
         didSet {
@@ -41,6 +42,19 @@ class GameScene: SKScene {
         case never, always, random
     }
     
+    //top scores
+    var highScores: [[String:Int]]! {
+        didSet {
+            if let scores = highScores {
+                if scores.count >= 2 {
+                    highScores = scores.sorted { first,second  in
+                        return first.first!.value > second.first!.value
+                    }
+                }
+            }
+        }
+    }
+    
     //showing enemies
     var popupTime = 0.9
     var sequence: [SequenceType]!
@@ -49,6 +63,7 @@ class GameScene: SKScene {
     var nextSequenceQueued = true //know when all enemies are destroyed and we need to create more
     
     override func didMove(to view: SKView) {
+        highScores = [[String:Int]]()
         let background = SKSpriteNode(imageNamed: "sliceBackground")
         background.position = CGPoint(x: 512, y: 384)
         background.blendMode = .replace
@@ -61,6 +76,7 @@ class GameScene: SKScene {
         createScore()
         createLives()
         createSlices()
+        getTopScores()
         
         sequence = [.oneNoBomb, .oneNoBomb, .twoWithOneBomb, .twoWithOneBomb, .three, .one, .chain]
         
@@ -495,15 +511,66 @@ class GameScene: SKScene {
         }
         
         gameOverLabel.text = "Game Over!"
-        gameOverLabel.position = CGPoint(x: 512, y: 384) //center
+        gameOverLabel.position = CGPoint(x: 512, y: 700) //center
         gameOverLabel.zPosition = 2
         addChild(gameOverLabel)
         
         playAgainLabel.text = "Play Again?"
-        playAgainLabel.position = CGPoint(x: 512, y: 300)
+        playAgainLabel.position = CGPoint(x: 512, y: 650)
         playAgainLabel.name = "playAgain"
         playAgainLabel.zPosition = 2
         addChild(playAgainLabel)
+        
+        //add high score if in top 5
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            [unowned self] in
+            if self.highScores.count >= 5 && self.score > self.highScores[4].first!.value {
+                self.askForHighScoreName()
+            } else if self.highScores.count < 5 {
+                self.askForHighScoreName()
+            } else {
+                self.showHighScores()
+            }
+        }
+    }
+    
+    func askForHighScoreName() {
+        let vc = UIAlertController(title: "High Score!", message: "Set your high score", preferredStyle: .alert)
+        vc.addTextField {
+            textField in
+            textField.placeholder = "Name"
+        }
+        vc.addAction(UIAlertAction(title: "Ok", style: .default) {
+            [unowned self, vc] action in
+            let name = vc.textFields!.first!.text ?? "Unknown"
+            self.setTopScore(name: name == "" ? "Unknown" : name, score: self.score)
+            self.showHighScores()
+        })
+        view!.window!.rootViewController!.present(vc, animated: true)
+    }
+    
+    func showHighScores() {
+        var highScoreString = ""
+        for score in highScores {
+            highScoreString += "\(score.first!.key): \(score.first!.value)\n"
+        }
+        displayMultiLineTextAt(x: 512, y: 600, text: "High Scores\n" + highScoreString)
+    }
+    
+    func displayMultiLineTextAt(x: CGFloat, y: CGFloat, text: String, align: SKLabelHorizontalAlignmentMode = .center, lineHeight: CGFloat = 40.0) {
+        highScoreLabel.position = CGPoint(x: x, y: y)
+        highScoreLabel.zPosition = 2
+        var lineAt: CGFloat = 0
+        for line in text.components(separatedBy: "\n") {
+            let labelNode = SKLabelNode(fontNamed: "Chalkduster")
+            labelNode.horizontalAlignmentMode = align
+            labelNode.position = CGPoint(x: 0, y: lineAt)
+            labelNode.text = line
+            highScoreLabel.addChild(labelNode)
+            lineAt -= lineHeight
+        }
+        addChild(highScoreLabel)
     }
     
     func subtractLife() {
@@ -553,6 +620,34 @@ class GameScene: SKScene {
         nextSequenceQueued = false
         gameOverLabel.removeFromParent()
         playAgainLabel.removeFromParent()
+        highScoreLabel.removeAllChildren()
+        highScoreLabel.removeFromParent()
+    }
+    
+    func getTopScores() {
+        let defaults = UserDefaults.standard
+        
+        let currentHighScores = defaults.object(forKey: "highScores") as? [[String:Int]] ?? [[String:Int]]()
+        highScores = currentHighScores
+        if highScores.count >= 2 {
+            highScores.sort { first,second  in
+                return first.first!.value > second.first!.value
+            }
+        }
+    }
+    
+    func setTopScore(name: String, score: Int) {
+        let defaults = UserDefaults.standard
+        
+//        var currentHighScores = defaults.object(forKey: "highScores") as? [String:Int] ?? [String:Int]()
+        let highScore = [name:score]
+        if highScores.count >= 5 {
+            highScores[4] = highScore
+        } else {
+            highScores.append(highScore)
+        }
+        //        highScores = currentHighScores
+        defaults.set(highScores, forKey: "highScores")
     }
 }
 
